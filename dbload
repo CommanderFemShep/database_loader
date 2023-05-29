@@ -1,68 +1,99 @@
 #!/usr/bin/python3
-# School Project for Scripting Languages class
 
 import sqlite3
 import csv
 import sys
 
+"""
+Revamped school project for Scripting Languages class.
 
-# ensures proper files are passed as args
-if len(sys.argv) != 3:
-	print("Usage: dbload CSVFILE DATABASEFILE")
-	exit(1)
+Command-line Python script to take the provided csv file and create a SQLite3 database file.
+It connects to the database file and creates a 'courses' and 'students' table, then parses the csv into the
+appropriate fields and inserts into the appropriate tables.
 
-
-try:
-	icsv = str(sys.argv[1])
-except:
-	print("Provide input csvfile")
-	exit(1)
+You can run the database file in SQLite3 terminal to test that the script works.
+"""
 
 
-try:
-	odb = str(sys.argv[2])
-except:
-	print("Provide output databasefile")
-	exit(1)
-	
+def verify_args():
+	"""
+	Ensures proper files are passed as args.
+	Should run in command-line as:
+		"python ./dbload '/path/to/csv/file' '/path/to/database/file'"
+	:return: input_csv, output_db
+	"""
+	if len(sys.argv) != 3:
+		print("Usage: ./dbload CSVFILEIN DATABASEFILEOUT")
+		exit(1)
 
-# connects to db file
-conn = sqlite3.connect(odb)
-curs = conn.cursor()
+	try:
+		input_csv = str(sys.argv[1])
+	except Exception:
+		print("Provide input csv file")
+		exit(1)
 
-
-# creates classes table
-curs.execute('''DROP TABLE IF EXISTS courses''')
-curs.execute('''CREATE TABLE courses
-	(id TEXT, subjcode TEXT, coursenumber TEXT, termcode TEXT)''')
-
-
-# creates students table
-curs.execute('''DROP TABLE IF EXISTS people''')
-curs.execute('''CREATE TABLE people
-	(id TEXT PRIMARY KEY UNIQUE, lastname TEXT, firstname TEXT, major TEXT, email TEXT, city TEXT, state TEXT, zip TEXT)''')
-
-
-# opens and reads the csv file
-reader = csv.reader(open(icsv, 'r'), delimiter=',', quotechar='"')
-counter = 0 
-for row in reader:
-	counter += 1 # skip first row
-	if counter == 1:
-		continue
-
-	# splits the subjects and courses
-	sc = row[5].split(" ")
-	p = (row[0], row[1], row[2], row[3], row[4], row[7], row[8],row[9])
-	c = (row[0], sc[0], sc[1], row[6])
-	
-	# only inserts if student doesn't already exist
-	curs.execute("SELECT * FROM people WHERE id = '{0}'".format(row[0]))
-	if not curs.fetchone():
-		curs.execute('''INSERT INTO people(id, firstname, lastname, email, major, city, state, zip) VALUES (?,?,?,?,?,?,?,?)''', p)	
-	curs.execute('''INSERT INTO courses (id, subjcode, coursenumber, termcode) VALUES (?,?,?,?)''', c)
+	try:
+		output_db = str(sys.argv[2])
+	except Exception:
+		print("Provide output database file name")
+		exit(1)
+	return input_csv, output_db
 
 
-conn.commit()
-exit(0)
+def connect_to_db(output_db):
+	"""
+	Connects to the SQLite3 database given the output_db name.
 
+	:param output_db: Database file path
+	:return: conn, curs
+	"""
+	# connects to database file
+	conn = sqlite3.connect(output_db)
+	curs = conn.cursor()
+	return conn, curs
+
+
+def main():
+	"""
+	Verifies arguments, connects to database file, and creates 'courses' and 'students' tables.
+	Reads in csv file and parses the appropriate fields, then inserts into the appropriate table.
+	Ensures that the tables and students do not exist before creating or inserting.
+	"""
+	input_csv, output_db = verify_args()
+	conn, curs = connect_to_db(output_db)
+
+	# creates courses table
+	curs.execute('''DROP TABLE IF EXISTS courses''')
+	curs.execute('''CREATE TABLE courses
+		(id TEXT, subjcode TEXT, coursenumber TEXT, termcode TEXT)''')
+
+	# creates students table
+	curs.execute('''DROP TABLE IF EXISTS students''')
+	curs.execute('''CREATE TABLE students
+		(id TEXT PRIMARY KEY UNIQUE, lastname TEXT, firstname TEXT, major TEXT, email TEXT, city TEXT, state TEXT, zip TEXT)''')
+
+	# opens and reads the csv file
+	reader = csv.reader(open(input_csv, 'r'), delimiter=',', quotechar='"')
+	counter = 0
+	for row in reader:
+		counter += 1  # skip first row
+		if counter == 1:
+			continue
+
+		# splits the subjects and courses (For example: 'subjcode' = CS, 'coursenumber' = 3030)
+		subject_courses = row[5].split(" ")
+		students = (row[0], row[1], row[2], row[3], row[4], row[7], row[8], row[9])
+		courses = (row[0], subject_courses[0], subject_courses[1], row[6])
+
+		# only inserts if specific student doesn't already exist
+		curs.execute("SELECT * FROM students WHERE id = '{0}'".format(row[0]))
+		if not curs.fetchone():
+			curs.execute('''INSERT INTO students(id, firstname, lastname, email, major, city, state, zip) VALUES (?,?,?,?,?,?,?,?)''', students)
+		curs.execute('''INSERT INTO courses (id, subjcode, coursenumber, termcode) VALUES (?,?,?,?)''', courses)
+
+	conn.commit()
+
+
+# ensuring the file doesn't execute certain functionality if another client imports from this file
+if __name__ == '__main__':
+	main()
